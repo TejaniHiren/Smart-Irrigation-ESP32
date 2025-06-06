@@ -30,8 +30,8 @@ int pinState;
 
 void tickEverySecond() {
   secondsCounter++;
-  Serial.print("Tick: ");
-  Serial.println(secondsCounter);
+  // Serial.print("Tick: ");
+  // Serial.println(secondsCounter);
 }
 
 void setup() {
