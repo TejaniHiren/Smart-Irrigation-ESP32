@@ -1,15 +1,15 @@
 
 #include <WiFi.h>
-// #include <time.h>
 #include <EEPROM.h>
 #include <Ticker.h>
 
-#define RELAY_PIN 12  // D4 on Lolin WEMOS Mini
+#define RELAY_PIN           12      
+#define BUTTON_PIN          14
 
-#define TIMER_INTERVAL_SEC 1  // 1-second interval
-#define SAVE_INTERVAL 300     // 5 minutes = 300 seconds
-#define ON_DURATION 30        // Relay ON time in seconds
-#define TRIGGER_INTERVAL 86400 // 24 hours = 86400 seconds
+#define TIMER_INTERVAL_SEC  1       // 1-second interval
+#define SAVE_INTERVAL       300     // 5 minutes = 300 seconds
+#define ON_DURATION         30      // Relay ON time in seconds
+#define TRIGGER_INTERVAL    86400   // 24 hours = 86400 seconds
 
 Ticker secondTicker;
 
@@ -22,6 +22,12 @@ unsigned long localCounter;
 const int EEPROM_SIZE = 512;        // Define EEPROM size
 const int ADDRESS = 0;              // Starting EEPROM address
 
+const unsigned long threshold = 3000;
+unsigned long highStartTime = 0;
+bool isTiming = false;
+bool actionTaken = false;
+int pinState;
+
 void tickEverySecond() {
   secondsCounter++;
   Serial.print("Tick: ");
@@ -32,6 +38,7 @@ void setup() {
   Serial.begin(115200);
   EEPROM.begin(EEPROM_SIZE);        // Initialize EEPROM
   pinMode(RELAY_PIN, OUTPUT);
+  pinMode(BUTTON_PIN, INPUT);
   digitalWrite(RELAY_PIN, LOW);  // Relay off
 
   EEPROM.get(ADDRESS, secondsCounter);
@@ -48,13 +55,35 @@ void setup() {
 
   // Setup timer interrupt
   secondTicker.attach(1, tickEverySecond); // Call every 1 second
-  // timer = timerBegin(1000000);  // 80MHz / 80 = 1MHz (1 tick = 1us)
-  // timerAttachInterrupt(timer, &onTimer);
-  // timerAlarmEnable(timer);
 }
 
 void loop() {
-  
+  pinState = digitalRead(BUTTON_PIN);
+  if (pinState == HIGH) {
+    if (!isTiming) 
+    {
+      // Start timing when HIGH is first detected
+      highStartTime = millis();
+      isTiming = true;
+    }
+    if (millis() - highStartTime >= threshold && !actionTaken) 
+    {
+      Serial.println("Pin HIGH for 5 seconds. Taking action...");
+      digitalWrite(RELAY_PIN, HIGH);
+      delay(1000);
+      digitalWrite(RELAY_PIN, LOW);
+      secondsCounter = 0;
+      EEPROM.put(ADDRESS, secondsCounter); 
+      EEPROM.commit();
+      actionTaken = true;  // Prevent repeating the action
+    }
+
+  } else {
+    // Reset if pin goes LOW before threshold is reached
+    isTiming = false;
+    actionTaken = false;
+  }
+
 
   localCounter = secondsCounter;
 
